@@ -1,0 +1,372 @@
+﻿<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Game</title>
+        <style>
+            * {
+                padding: 0;
+                margin: 10px;
+            }
+
+            canvas {
+                background-color: black;
+                display: block;
+                margin: 0 auto;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="myCanvas" width="420" height="600"></canvas>
+
+        <script>
+            //이곳에 자바스크립트
+            var canvas = document.getElementById("myCanvas");
+            var ctx = canvas.getContext("2d");
+
+            //오디오파일
+            var audio = new Audio("./mp3/bullet.mp3");
+            var audio1 = new Audio("./mp3/Monsterattak.mp3");
+            var audio2 = new Audio("./mp3/clear.mp3");
+            var audio3 = new Audio("./mp3/win.mp3");
+            var audio4 = new Audio("./mp3/gameover.mp3");
+
+            var timer, timer1, timer2; //주기적 호출 중지 변수
+            var clear = true; //스테이지가 클리어되었는가 체크
+            var arr = new Array(); // 스테이지 복사 배열
+            var t = 0; //배경이미지 제어변수
+            var i, j; //반복문 제어변수
+            var heart = 3; //목숨개수
+            var score = 0; //점수
+            var stage = 1; //스테이지
+            var now,
+                lastShoot = 0; //총알발사 제어시간변수
+
+            //이미지 변수들
+            var image1 = new Image();
+            var image2 = new Image();
+            var image3 = new Image();
+            var image4 = new Image();
+            image1.src = "./img/monster1.png";
+            image2.src = "./img/roket.png";
+            image3.src = "./img/background.png";
+            image4.src = "./img/heart.png";
+
+            //몬스터의 위치를 담을 배열
+            var MonsterX = new Array();
+            var MonsterY = new Array();
+            var Monster_dx = new Array();
+            var MonsterBulletX = new Array();
+            var MonsterBulletY = new Array();
+
+            //총알의 위치를 담을 배열
+            var bulletX = new Array();
+            var bulletY = new Array();
+            var bullet_dy = -4; //총알의 속도
+
+            //로켓의 초기위치
+            var roketX = 195;
+            var roketY = 500;
+            var roketW = 50;
+            var roketH = 50;
+
+            var rightPressed = false;
+            var leftPressed = false;
+            var spacePressed = false;
+
+            document.addEventListener("keydown", keyDownHandler, false);
+            document.addEventListener("keyup", keyUpHandler, false);
+
+            function keyDownHandler(e) {
+                if (e.keyCode == 39) rightPressed = true;
+                else if (e.keyCode == 37) leftPressed = true;
+                else if (e.keyCode == 32) spacePressed = true;
+            }
+
+            function keyUpHandler(e) {
+                if (e.keyCode == 39) rightPressed = false;
+                else if (e.keyCode == 37) leftPressed = false;
+                else if (e.keyCode == 32) spacePressed = false;
+            }
+
+            //배경을 그림
+            function drawbackground() {
+                ctx.drawImage(image3, 0, t);
+                ctx.drawImage(image3, 0, t - canvas.height);
+                t += 1;
+                if (t > canvas.height) t = 0;
+            }
+
+            //로켓을 그림
+            function drawRoket() {
+                ctx.beginPath();
+                ctx.rect(roketX, roketY, roketW, roketH);
+                ctx.fillStyle = "#00ff0000";
+                ctx.fill();
+                ctx.closePath();
+                ctx.drawImage(image2, roketX, roketY);
+            }
+
+            //총알을 그림
+            function drawBullet() {
+                for (i = 0; i < bulletX.length; i++) {
+                    ctx.beginPath();
+                    ctx.rect(bulletX[i], bulletY[i], 5, 5);
+                    ctx.fillStyle = "Yellow";
+                    ctx.fill();
+                    ctx.closePath();
+
+                    if (bulletY[i] < 10) {
+                        bulletX.shift();
+                        bulletY.shift();
+                    } else bulletY[i] += bullet_dy;
+                }
+            }
+
+            //총알 판정
+            function attack() {
+                for (j = 0; j < MonsterX.length; j++) {
+                    for (i = 0; i < bulletX.length; i++) {
+                        if (
+                            bulletX[i] + 5 >= MonsterX[j] &&
+                            bulletX[i] <= MonsterX[j] + 20 &&
+                            bulletY[i] + 5 >= MonsterY[j] &&
+                            bulletY[i] <= MonsterY[j] + 20
+                        ) {
+                            MonsterX.splice(j, 1);
+                            MonsterY.splice(j, 1);
+                            Monster_dx.splice(j, 1);
+                            bulletX.splice(i, 1);
+                            bulletY.splice(i, 1);
+                            score += 100;
+
+                            if (MonsterX.length == 0) {
+                                stage++;
+                                clear = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //총알발사
+            function shoot() {
+                now = new Date().getTime();
+                if (now - lastShoot > 700) {
+                    audio.play();
+                    score--;
+                    bulletX.push(roketX + 20);
+                    bulletY.push(roketY);
+                    lastShoot = now;
+                }
+            }
+
+            //몬스터를 그림
+            function drawMonster() {
+                for (i = 0; i < MonsterX.length; i++) {
+                    ctx.beginPath();
+                    ctx.rect(MonsterX[i], MonsterY[i], 20, 20);
+                    ctx.fillStyle = "#00ff0000";
+                    ctx.fill();
+                    ctx.closePath();
+                    ctx.drawImage(image1, MonsterX[i], MonsterY[i]);
+                    MonsterX[i] += Monster_dx[i];
+                }
+            }
+
+            //몬스터들의 움직임
+            function move() {
+                for (i = 0; i < MonsterX.length; i++)
+                    Monster_dx[i] = -Monster_dx[i];
+            }
+
+            //몬스터들의 공격생성
+            function monsterBullet() {
+                for (i = 0; i < MonsterX.length; i++) {
+                    var num = Math.floor(Math.random() * 4); // 0 ~ 3 까지의 정수 값을 생성
+                    if (!num) {
+                        MonsterBulletX.push(MonsterX[i] + 10);
+                        MonsterBulletY.push(MonsterY[i]);
+                    }
+                }
+            }
+
+            //몬스터 공격을 그림
+            function drawMonsterBullet() {
+                for (i = 0; i < MonsterBulletX.length; i++) {
+                    ctx.beginPath();
+                    ctx.rect(MonsterBulletX[i], MonsterBulletY[i], 5, 5);
+                    ctx.fillStyle = "Pink";
+                    ctx.fill();
+                    ctx.closePath();
+
+                    if (MonsterBulletY[i] > 580) {
+                        MonsterBulletX.shift();
+                        MonsterBulletY.shift();
+                    } else MonsterBulletY[i] -= bullet_dy;
+                }
+            }
+
+            //몬스터공격 판정
+            function Damage() {
+                for (i = 0; i < MonsterBulletX.length; i++) {
+                    if (
+                        MonsterBulletX[i] + 5 >= roketX + 5 &&
+                        MonsterBulletX[i] <= roketX + roketW - 5 &&
+                        MonsterBulletY[i] + 5 >= roketY + 5 &&
+                        MonsterBulletY[i] <= roketY + roketH - 5
+                    ) {
+                        audio1.play();
+                        MonsterBulletX.splice(i, 1);
+                        MonsterBulletY.splice(i, 1);
+                        heart--;
+                        if (heart == -1) gameover();
+                    }
+                }
+            }
+
+            //남은 생명을 그림
+            function drawHeart() {
+                for (i = 0; i < heart; i++)
+                    ctx.drawImage(image4, 5 + i * 30, 560);
+            }
+
+            //스코어를 그림
+            function drawscore() {
+                ctx.font = "20px Arial";
+                ctx.fillStyle = "Red";
+                ctx.fillText("Score: ", 10, 20);
+                ctx.font = "16px Arial";
+                ctx.fillStyle = "White";
+                ctx.fillText(score, 70, 20);
+            }
+
+            //다음몬스터를 소환
+            function nextStage() {
+                if (stage == 1 && clear == true) {
+                    bulletX = new Array();
+                    bulletY = new Array();
+                    MonsterX = new Array(30, 130, 230, 330);
+                    MonsterY = new Array(100, 70, 100, 70);
+                    Monster_dx = new Array(0.5, 0.5, 0.5, 0.5);
+                    image1.src = "./img/monster1.png";
+                    clear = false;
+                } else if (stage == 2 && clear == true) {
+                    audio2.play();
+                    heart++;
+                    bulletX = new Array();
+                    bulletY = new Array();
+                    MonsterX = new Array(40, 130, 230, 300, 330);
+                    MonsterY = new Array(200, 270, 100, 200, 70);
+                    Monster_dx = new Array(1, 0.5, 1, 1, 0.5);
+                    image1.src = "./img/monster2.png";
+                    clear = false;
+                } else if (stage == 3 && clear == true) {
+                    audio2.play();
+                    heart++;
+                    bulletX = new Array();
+                    bulletY = new Array();
+                    MonsterX = new Array(30, 100, 130, 230, 330);
+                    MonsterY = new Array(200, 100, 270, 40, 70);
+                    Monster_dx = new Array(0.5, 2, 1, 2, 0.5);
+                    image1.src = "./img/monster3.png";
+                    clear = false;
+                } else if (stage == 4 && clear == true) {
+                    win();
+                }
+            }
+
+            function win() {
+                audio3.play();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                clearInterval(timer);
+                clearInterval(timer1);
+                clearInterval(timer2);
+                drawbackground();
+
+                ctx.font = "80px Arial";
+                ctx.fillStyle = "Red";
+                ctx.fillText("win!", 140, 200);
+
+                ctx.font = "45px Arial";
+                ctx.fillStyle = "White";
+                ctx.fillText("your score", 100, 250);
+
+                var str = String(score);
+                ctx.fillText(
+                    str,
+                    canvas.width / 2 - str.length * 13,
+                    canvas.height / 2
+                );
+
+                ctx.font = "30px Arial";
+                ctx.strokeStyle = "White";
+                ctx.strokeText("Try again Press F5", 80, 350);
+
+                ctx.drawImage(image2, 180, 420);
+            }
+
+            //게임오버
+            function gameover() {
+                audio4.play();
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                clearInterval(timer);
+                clearInterval(timer1);
+                clearInterval(timer2);
+                drawbackground();
+
+                ctx.font = "80px Arial";
+                ctx.fillStyle = "Blue";
+                ctx.fillText("Lose!", 110, 200);
+
+                ctx.font = "45px Arial";
+                ctx.fillStyle = "White";
+                ctx.fillText("your score", 100, 250);
+
+                var str = String(score);
+                ctx.fillText(
+                    str,
+                    canvas.width / 2 - str.length * 13,
+                    canvas.height / 2
+                );
+
+                ctx.font = "30px Arial";
+                ctx.strokeStyle = "White";
+                ctx.strokeText("Try again Press F5", 80, 350);
+
+                ctx.drawImage(image2, 180, 420);
+            }
+
+            //화면 갱신
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawbackground(); //흘러가는 배경그리기
+                drawMonsterBullet(); //몬스터의 공격 그리기
+                attack(); //공격에 성공했는지 체크
+                drawHeart(); //남은 하트를 그리기
+                drawscore(); //점수 그리기
+                drawBullet(); //사용자의 공격을 그리기
+                drawRoket(); //로켓 그리기
+                drawMonster(); //몬스터 그리기
+                Damage(); //공격받았는지 체크
+                nextStage(); //다음스테이지
+
+                //로켓의 좌우 움직이기
+                if (rightPressed && roketX < canvas.width - roketW) roketX += 4;
+                if (leftPressed && roketX > 0) roketX -= 4;
+
+                //스페이스바를 누르면 공격
+                if (spacePressed) shoot();
+            }
+
+            //화면조정
+            timer = setInterval(draw, 10);
+
+            //몬스터들의 움직임 조정
+            timer1 = setInterval(move, 500);
+
+            //몬스터 공격 세팅
+            timer2 = setInterval(monsterBullet, 700);
+        </script>
+    </body>
+</html>
